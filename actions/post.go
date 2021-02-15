@@ -123,9 +123,20 @@ func ShowPost(c buffalo.Context) error {
 
 // UpdatePost - Update a single post
 func UpdatePost(c buffalo.Context) error {
-	database := c.Value("tx").(*pop.Connection)
 
 	post := &models.Post{}
+	database := c.Value("tx").(*pop.Connection)
+	// retrieve the existing record
+	if txErr := database.Find(post, c.Param("post_id")); txErr != nil {
+		
+		notFoundResponse := NewErrorResponse(
+			http.StatusNotFound,
+			"post_id",
+			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
+		)
+		return c.Render(http.StatusNotFound, r.JSON(notFoundResponse))
+	}
+	// bind the form input
 	if bindErr := c.Bind(post); bindErr != nil {
 		emptyBodyResponse := NewErrorResponse(
 			http.StatusUnprocessableEntity,
@@ -134,17 +145,6 @@ func UpdatePost(c buffalo.Context) error {
 		)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(emptyBodyResponse))
 	}
-
-	if txErr := database.Find(post, c.Param("post_id")); txErr != nil {
-
-		notFoundResponse := NewErrorResponse(
-			http.StatusNotFound,
-			"post_id",
-			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
-		)
-		return c.Render(http.StatusNotFound, r.JSON(notFoundResponse))
-	}
-
 	validationErrors, err := database.ValidateAndUpdate(post)
 	if err != nil {
 		return errors.WithStack(err)
@@ -159,9 +159,9 @@ func UpdatePost(c buffalo.Context) error {
 	}
 
 	response := PostResponse{
-		Code: fmt.Sprintf("%d", http.StatusAccepted),
+		Code: fmt.Sprintf("%d", http.StatusOK),
 		Data: post,
 	}
 
-	return c.Render(http.StatusAccepted, r.JSON(response))
+	return c.Render(http.StatusOK, r.JSON(response))
 }

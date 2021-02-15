@@ -69,6 +69,7 @@ func App() *buffalo.App {
 		apiv1Post.GET("/", ListPost)
 		apiv1Post.POST("/create", CreatePost)
 		apiv1Post.GET("/{post_id}", ShowPost).Name("showPost")
+
 		apiv1Post.PUT("/{post_id}", UpdatePost).Name("updatePost")
 
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
