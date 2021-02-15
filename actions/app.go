@@ -1,16 +1,15 @@
 package actions
 
 import (
+	"blog/models"
+
 	"github.com/gobuffalo/buffalo"
+	"github.com/gobuffalo/buffalo-pop/v2/pop/popmw"
 	"github.com/gobuffalo/envy"
 	forcessl "github.com/gobuffalo/mw-forcessl"
 	paramlogger "github.com/gobuffalo/mw-paramlogger"
 	"github.com/unrolled/secure"
 
-	"blog/models"
-
-	"github.com/gobuffalo/buffalo-pop/v2/pop/popmw"
-	csrf "github.com/gobuffalo/mw-csrf"
 	i18n "github.com/gobuffalo/mw-i18n"
 	"github.com/gobuffalo/packr/v2"
 )
@@ -49,7 +48,7 @@ func App() *buffalo.App {
 
 		// Protect against CSRF attacks. https://www.owasp.org/index.php/Cross-Site_Request_Forgery_(CSRF)
 		// Remove to disable this.
-		app.Use(csrf.New)
+		// app.Use(csrf.New)
 
 		// Wraps each request in a transaction.
 		//  c.Value("tx").(*pop.Connection)
@@ -60,6 +59,17 @@ func App() *buffalo.App {
 		app.Use(translations())
 
 		app.GET("/", HomeHandler)
+
+		api := app.Group("/api")
+
+		apiv1 := api.Group("/v1")
+
+		apiv1Post := apiv1.Group("/posts")
+
+		apiv1Post.GET("/", ListPost)
+		apiv1Post.POST("/create", CreatePost)
+		apiv1Post.GET("/{post_id}", ShowPost).Name("showPost")
+		apiv1Post.PUT("/{post_id}", UpdatePost).Name("updatePost")
 
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
 	}

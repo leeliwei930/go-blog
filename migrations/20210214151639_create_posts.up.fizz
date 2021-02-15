@@ -1,0 +1,7 @@
+create_table("posts") {
+	t.Column("id", "uuid", {primary: true})
+	t.Column("title" , "string", {size: 255})
+	t.Column("description", "text")
+	t.Column("published_at", "datetime")
+	t.Timestamps()
+}

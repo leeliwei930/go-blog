@@ -1,11 +1,11 @@
 ---
 development:
   dialect: "mysql"
-  database: "blog_development"
+  database: {{ envOr "DB_NAME" "buffalo"}}
   host: "localhost"
-  port: "3306"
-  user: "root"
-  password: "root"
+  port: {{ envOr "DB_PORT" "3306"}}
+  user: {{ envOr "DB_USERNAME" "go_buffalo"}}
+  password: {{envOr "DB_PASSWORD"  ""}}
 
 test:
   dialect: "mysql"
