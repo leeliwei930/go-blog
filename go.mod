@@ -20,4 +20,5 @@ require (
 	github.com/markbates/grift v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/unrolled/secure v0.0.0-20190103195806-76e6d4e9b90c
+	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
 )
