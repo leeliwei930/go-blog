@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"blog/models"
 	"blog/utils"
 	"net/http"
 	"strings"
@@ -8,6 +9,7 @@ import (
 	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/gobuffalo/buffalo"
 	"github.com/gobuffalo/buffalo/render"
+	"github.com/gobuffalo/pop/v5"
 )
 
 type ErrorResponse struct {
@@ -49,8 +51,16 @@ func JWTMiddleware(next buffalo.Handler) buffalo.Handler {
 			return c.Render(http.StatusUnauthorized, render.JSON(unauthResponse))
 		}
 		// verify the email is available in DB
+		database := c.Value("tx").(*pop.Connection)
+		tokenUser := &models.User{}
+		dbErr := database.Find(tokenUser, claims.ID)
+		if dbErr != nil {
+			unauthResponse := ErrorResponse{Code: http.StatusUnauthorized, Message: "Invalid User ID"}
+			return c.Render(http.StatusUnauthorized, render.JSON(unauthResponse))
+		}
 
-		c.Set("email", claims.ID)
+		c.Set("authUser", *tokenUser)
+
 		middlewareErr := next(c)
 		// do some work after calling the next handler
 

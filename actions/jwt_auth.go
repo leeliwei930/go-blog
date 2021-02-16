@@ -2,17 +2,17 @@ package actions
 
 import (
 	"blog/models"
+	"blog/utils"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go/v4"
 	"github.com/gobuffalo/buffalo"
-	"github.com/gobuffalo/envy"
 	"github.com/gobuffalo/pop/v5"
 	"github.com/gobuffalo/validate/v3"
 	"github.com/gobuffalo/validate/v3/validators"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type LogInPayload struct {
@@ -26,18 +26,17 @@ type RegisterPayload struct {
 	Name     string `json:"name"`
 }
 
-func (payload *LogInPayload) Validate() (*validate.Errors, error) {
-	return validate.Validate(
-		&validators.EmailIsPresent{Name: "Email", Field: payload.Email},
-		&validators.StringIsPresent{Name: "Password", Field: payload.Password},
-	), nil
-}
-
 type LogInResponse struct {
-	AccessToken string `json:"access_token"`
+	AccessToken string      `json:"access_token"`
+	User        models.User `json:"user"`
 }
 
 type RegisterResponse struct {
+	Code string      `json:"code"`
+	Data models.User `json:"data"`
+}
+
+type UserAuthResponse struct {
 	Code string      `json:"code"`
 	Data models.User `json:"data"`
 }
@@ -47,12 +46,29 @@ type Claims struct {
 	StandardClaims jwt.StandardClaims
 }
 
-func readJWTKey() ([]byte, error) {
-	keyPath := envy.Get("JWT_KEY_PATH", "")
+func (payload *LogInPayload) Validate() (*validate.Errors, error) {
+	return validate.Validate(
+		&validators.EmailIsPresent{Name: "Email", Field: payload.Email},
+		&validators.StringIsPresent{Name: "Password", Field: payload.Password},
+	), nil
+}
 
-	content, error := ioutil.ReadFile(keyPath)
+// AttemptAuth - Attempt on authentication
+func AttemptAuth(payload LogInPayload, db *pop.Connection) (bool, *models.User) {
+	user := &models.User{}
 
-	return content, error
+	userNotFound := db.Where("email = ?", payload.Email).First(user)
+
+	if userNotFound != nil {
+		return true, user
+	}
+
+	passwordNotMatched := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password))
+
+	if passwordNotMatched != nil {
+		return false, user
+	}
+	return true, user
 }
 
 // JwtAuthLogIn default implementation.
@@ -64,22 +80,31 @@ func JwtAuthLogIn(c buffalo.Context) error {
 	if err != nil {
 		return c.Error(http.StatusInternalServerError, err)
 	}
+	db := c.Value("tx").(*pop.Connection)
+	exist, user := AttemptAuth(*request, db)
+
+	if !exist {
+		verrs.Add("email", "The account credentials doesn't match with our database records")
+		errorResponse := NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
+		return c.Render(http.StatusUnprocessableEntity, r.JSON(errorResponse))
+	}
 
 	if verrs.HasAny() {
 		errorResponse := NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errorResponse))
 	}
+
 	tokenExpiration := &jwt.Time{
 		Time: time.Now().Add(10080 * time.Minute),
 	}
 	claims := &jwt.StandardClaims{
 		ExpiresAt: tokenExpiration,
 		Issuer:    "buffalo-cms.api.dev",
-		ID:        request.Email,
+		ID:        user.ID.String(),
 	}
 
 	tokenAlgo := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	key, keyErr := readJWTKey()
+	key, keyErr := utils.ReadJWTKey()
 	if keyErr != nil {
 		c.Error(http.StatusInternalServerError, keyErr)
 	}
@@ -92,6 +117,7 @@ func JwtAuthLogIn(c buffalo.Context) error {
 
 	return c.Render(http.StatusOK, r.JSON(LogInResponse{
 		AccessToken: token,
+		User:        *user,
 	}))
 }
 
@@ -136,4 +162,14 @@ func RegisterUser(c buffalo.Context) error {
 		Data: *user,
 	}
 	return c.Render(http.StatusCreated, r.JSON(response))
+}
+
+func GetUser(c buffalo.Context) error {
+
+	user := c.Value("authUser").(models.User)
+	response := UserAuthResponse{
+		Code: fmt.Sprintf("%d", http.StatusOK),
+		Data: user,
+	}
+	return c.Render(http.StatusOK, r.JSON(response))
 }

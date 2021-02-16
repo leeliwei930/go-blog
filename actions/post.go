@@ -12,8 +12,9 @@ import (
 
 // PostsResponse - Posts collection response body
 type PostsResponse struct {
-	Code string       `json:"code"`
-	Data models.Posts `json:"data"`
+	Code string        `json:"code"`
+	Data models.Posts  `json:"data"`
+	Meta pop.Paginator `json:"meta"`
 }
 
 // PostResponse - Single post object response body
@@ -71,6 +72,7 @@ func ListPost(c buffalo.Context) error {
 	response := PostsResponse{
 		Code: fmt.Sprintf("%d", http.StatusOK),
 		Data: *posts,
+		Meta: *query.Paginator,
 	}
 	c.Logger().Debug(c.Value("email"))
 	return c.Render(http.StatusOK, r.JSON(response))

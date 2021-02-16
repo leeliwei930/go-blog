@@ -76,6 +76,7 @@ func App() *buffalo.App {
 		apiv1Auth := apiv1.Group("/auth")
 		apiv1Auth.POST("/login", JwtAuthLogIn)
 		apiv1Auth.POST("/register", RegisterUser)
+		apiv1Auth.GET("/user", middleware.JWTMiddleware(GetUser))
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
 	}
 
