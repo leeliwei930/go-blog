@@ -24,4 +24,5 @@ jhw.*
 dist/
 generated/
 .vendor/
-
+storage/app/jwt/*.key
+storage/app/jwt/*.key.pub

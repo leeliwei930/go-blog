@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"blog/middleware"
 	"blog/models"
 
 	"github.com/gobuffalo/buffalo"
@@ -65,13 +66,15 @@ func App() *buffalo.App {
 		apiv1 := api.Group("/v1")
 
 		apiv1Post := apiv1.Group("/posts")
-
+		apiv1Post.Use(middleware.JWTMiddleware)
 		apiv1Post.GET("/", ListPost)
 		apiv1Post.POST("/create", CreatePost)
 		apiv1Post.GET("/{post_id}", ShowPost).Name("showPost")
-
 		apiv1Post.PUT("/{post_id}", UpdatePost).Name("updatePost")
+		apiv1Post.DELETE("/{post_id}", DeletePost)
 
+		apiv1Auth := apiv1.Group("/auth")
+		apiv1Auth.POST("/login", JwtAuthLogIn)
 		app.ServeFiles("/", assetsBox) // serve files from the public directory
 	}
 

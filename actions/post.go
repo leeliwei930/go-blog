@@ -22,6 +22,12 @@ type PostResponse struct {
 	Data *models.Post `json:"data"`
 }
 
+// PostDeletedResponse - Response body when post get removed
+type PostDeletedResponse struct {
+	Code string       `json:"code"`
+	Data *models.Post `json:"data"`
+}
+
 // ErrorResponse - Validation errors or any others errors response body
 type ErrorResponse struct {
 	Code   string              `json:"code"`
@@ -58,7 +64,7 @@ func ListPost(c buffalo.Context) error {
 
 	query := db.PaginateFromParams(c.Params())
 
-	if err := query.All(posts); err != nil {
+	if err := query.Order("created_at desc").All(posts); err != nil {
 		return err
 	}
 
@@ -66,6 +72,7 @@ func ListPost(c buffalo.Context) error {
 		Code: fmt.Sprintf("%d", http.StatusOK),
 		Data: *posts,
 	}
+	c.Logger().Debug(c.Value("email"))
 	return c.Render(http.StatusOK, r.JSON(response))
 }
 
@@ -92,10 +99,10 @@ func CreatePost(c buffalo.Context) error {
 	}
 
 	postResponse := PostResponse{
-		Code: fmt.Sprintf("%d", http.StatusAccepted),
+		Code: fmt.Sprintf("%d", http.StatusCreated),
 		Data: post,
 	}
-	return c.Render(http.StatusAccepted, r.JSON(postResponse))
+	return c.Render(http.StatusCreated, r.JSON(postResponse))
 }
 
 // ShowPost - update the post based on the given ID
@@ -128,7 +135,7 @@ func UpdatePost(c buffalo.Context) error {
 	database := c.Value("tx").(*pop.Connection)
 	// retrieve the existing record
 	if txErr := database.Find(post, c.Param("post_id")); txErr != nil {
-		
+
 		notFoundResponse := NewErrorResponse(
 			http.StatusNotFound,
 			"post_id",
@@ -164,4 +171,35 @@ func UpdatePost(c buffalo.Context) error {
 	}
 
 	return c.Render(http.StatusOK, r.JSON(response))
+}
+
+func DeletePost(c buffalo.Context) error {
+	post := &models.Post{}
+	database := c.Value("tx").(*pop.Connection)
+
+	txErr := database.Find(post, c.Param("post_id"))
+	if txErr != nil {
+		notFoundResponse := NewErrorResponse(
+			http.StatusNotFound,
+			"post_id",
+			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
+		)
+		return c.Render(http.StatusNotFound, r.JSON(notFoundResponse))
+	}
+
+	if deleteErr := database.Destroy(post); deleteErr != nil {
+		deleteErrResponse := NewErrorResponse(
+			http.StatusInternalServerError,
+			"post",
+			fmt.Sprintf("Unable to delete the post with id %s", c.Param("post_id")),
+		)
+
+		return c.Render(http.StatusInternalServerError, r.JSON(deleteErrResponse))
+	}
+
+	deleteSuccessResponse := PostDeletedResponse{
+		Code: fmt.Sprintf("%d", http.StatusOK),
+		Data: post,
+	}
+	return c.Render(http.StatusOK, r.JSON(deleteSuccessResponse))
 }
