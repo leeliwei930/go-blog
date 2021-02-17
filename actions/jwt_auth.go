@@ -60,7 +60,7 @@ func AttemptAuth(payload LogInPayload, db *pop.Connection) (bool, *models.User) 
 	userNotFound := db.Where("email = ?", payload.Email).First(user)
 
 	if userNotFound != nil {
-		return true, user
+		return false, user
 	}
 
 	passwordNotMatched := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(payload.Password))
@@ -85,12 +85,12 @@ func JwtAuthLogIn(c buffalo.Context) error {
 
 	if !exist {
 		verrs.Add("email", "The account credentials doesn't match with our database records")
-		errorResponse := NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
+		errorResponse := utils.NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errorResponse))
 	}
 
 	if verrs.HasAny() {
-		errorResponse := NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
+		errorResponse := utils.NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errorResponse))
 	}
 
@@ -142,7 +142,7 @@ func RegisterUser(c buffalo.Context) error {
 	}
 
 	if verrs.HasAny() {
-		errorResponse := NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
+		errorResponse := utils.NewValidationErrorResponse(http.StatusUnprocessableEntity, verrs.Errors)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errorResponse))
 	}
 	user := &models.User{
@@ -153,7 +153,7 @@ func RegisterUser(c buffalo.Context) error {
 	_, createUserErr := user.Create(tx)
 
 	if createUserErr != nil {
-		errorResponse := NewErrorResponse(http.StatusInternalServerError, "user", "There is a problem while creating a user please try again later")
+		errorResponse := utils.NewErrorResponse(http.StatusInternalServerError, "user", "There is a problem while creating a user please try again later")
 		return c.Render(http.StatusInternalServerError, r.JSON(errorResponse))
 	}
 

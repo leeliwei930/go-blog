@@ -21,6 +21,7 @@ type User struct {
 	Name      string    `json:"name" db:"name"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	BlogPosts Posts     `json:"posts" has_many:"posts"`
 }
 
 // String is not required by pop and may be deleted
@@ -36,6 +37,14 @@ type Users []User
 func (u Users) String() string {
 	ju, _ := json.Marshal(u)
 	return string(ju)
+}
+
+// Posts - Return a collection of posts belong to user
+func (u *User) Posts(tx *pop.Connection) (*Posts, error) {
+	posts := &Posts{}
+	err := tx.Eager().All(posts)
+
+	return posts, err
 }
 
 // Validate gets run every time you call a "pop.Validate*" (pop.ValidateAndSave, pop.ValidateAndCreate, pop.ValidateAndUpdate) method.

@@ -2,6 +2,7 @@ package actions
 
 import (
 	"blog/models"
+	"blog/utils"
 	"fmt"
 	"net/http"
 
@@ -29,34 +30,7 @@ type PostDeletedResponse struct {
 	Data *models.Post `json:"data"`
 }
 
-// ErrorResponse - Validation errors or any others errors response body
-type ErrorResponse struct {
-	Code   string              `json:"code"`
-	Errors map[string][]string `json:"errors,omitempty"`
-	Error  map[string]string   `json:"error,omitempty"`
-}
-
-// NewErrorResponse - Single based error response body
-func NewErrorResponse(statusCode int, field string, message string) ErrorResponse {
-
-	var errorFields = map[string]string{}
-	errorFields[field] = message
-
-	return ErrorResponse{
-		Code:  fmt.Sprintf("%d", statusCode),
-		Error: errorFields,
-	}
-}
-
-// NewValidationErrorResponse - Validation fields based errors
-func NewValidationErrorResponse(statusCode int, verrs map[string][]string) ErrorResponse {
-	return ErrorResponse{
-		Code:   fmt.Sprintf("%d", statusCode),
-		Errors: verrs,
-	}
-}
-
-// PostList default implementation.
+// ListPost - list a collection of post with user
 func ListPost(c buffalo.Context) error {
 
 	db := c.Value("tx").(*pop.Connection)
@@ -65,8 +39,10 @@ func ListPost(c buffalo.Context) error {
 
 	query := db.PaginateFromParams(c.Params())
 
-	if err := query.Order("created_at desc").All(posts); err != nil {
-		return err
+	if err := query.Order("created_at desc").Eager().All(posts); err != nil {
+
+		errorResponse := utils.NewErrorResponse(http.StatusInternalServerError, "user", "There is a problem while loading the relationship user")
+		return c.Render(http.StatusInternalServerError, r.JSON(errorResponse))
 	}
 
 	response := PostsResponse{
@@ -80,21 +56,22 @@ func ListPost(c buffalo.Context) error {
 
 // CreatePost - Validate and create a Post
 func CreatePost(c buffalo.Context) error {
-
+	authUser := c.Value("authUser").(models.User)
 	post := &models.Post{}
 	if err := c.Bind(post); err != nil {
 		return errors.WithStack(err)
 	}
 	db := c.Value("tx").(*pop.Connection)
-
-	validationErrors, err := db.ValidateAndCreate(post)
+	post.UserID = authUser.ID
+	post.User = &authUser
+	validationErrors, err := db.Eager().ValidateAndCreate(post)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	if validationErrors.HasAny() {
 
-		errResponse := NewValidationErrorResponse(
+		errResponse := utils.NewValidationErrorResponse(
 			http.StatusUnprocessableEntity, validationErrors.Errors,
 		)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errResponse))
@@ -113,9 +90,9 @@ func ShowPost(c buffalo.Context) error {
 
 	post := &models.Post{}
 
-	if txErr := database.Find(post, c.Param("post_id")); txErr != nil {
+	if txErr := database.Eager().Find(post, c.Param("post_id")); txErr != nil {
 
-		notFoundResponse := NewErrorResponse(
+		notFoundResponse := utils.NewErrorResponse(
 			http.StatusNotFound,
 			"post_id",
 			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
@@ -132,13 +109,13 @@ func ShowPost(c buffalo.Context) error {
 
 // UpdatePost - Update a single post
 func UpdatePost(c buffalo.Context) error {
-
+	authUser := c.Value("authUser").(models.User)
 	post := &models.Post{}
 	database := c.Value("tx").(*pop.Connection)
 	// retrieve the existing record
 	if txErr := database.Find(post, c.Param("post_id")); txErr != nil {
 
-		notFoundResponse := NewErrorResponse(
+		notFoundResponse := utils.NewErrorResponse(
 			http.StatusNotFound,
 			"post_id",
 			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
@@ -147,23 +124,24 @@ func UpdatePost(c buffalo.Context) error {
 	}
 	// bind the form input
 	if bindErr := c.Bind(post); bindErr != nil {
-		emptyBodyResponse := NewErrorResponse(
+		emptyBodyResponse := utils.NewErrorResponse(
 			http.StatusUnprocessableEntity,
 			"body",
 			"The request body cannot be empty",
 		)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(emptyBodyResponse))
 	}
+	post.UserID = authUser.ID
 	validationErrors, err := database.ValidateAndUpdate(post)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
 	if validationErrors.HasAny() {
-		errResponse := ErrorResponse{
-			Code:   fmt.Sprintf("%d", http.StatusUnprocessableEntity),
-			Errors: validationErrors.Errors,
-		}
+		errResponse := utils.NewValidationErrorResponse(
+			http.StatusUnprocessableEntity,
+			validationErrors.Errors,
+		)
 		return c.Render(http.StatusUnprocessableEntity, r.JSON(errResponse))
 	}
 
@@ -175,13 +153,14 @@ func UpdatePost(c buffalo.Context) error {
 	return c.Render(http.StatusOK, r.JSON(response))
 }
 
+// DeletePost - Remove a post based on ID
 func DeletePost(c buffalo.Context) error {
 	post := &models.Post{}
 	database := c.Value("tx").(*pop.Connection)
 
 	txErr := database.Find(post, c.Param("post_id"))
 	if txErr != nil {
-		notFoundResponse := NewErrorResponse(
+		notFoundResponse := utils.NewErrorResponse(
 			http.StatusNotFound,
 			"post_id",
 			fmt.Sprintf("The requested post %s is removed or move to somewhere else.", c.Param("post_id")),
@@ -190,7 +169,7 @@ func DeletePost(c buffalo.Context) error {
 	}
 
 	if deleteErr := database.Destroy(post); deleteErr != nil {
-		deleteErrResponse := NewErrorResponse(
+		deleteErrResponse := utils.NewErrorResponse(
 			http.StatusInternalServerError,
 			"post",
 			fmt.Sprintf("Unable to delete the post with id %s", c.Param("post_id")),

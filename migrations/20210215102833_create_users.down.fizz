@@ -1,1 +1,2 @@
+drop_foreign_key("posts", "fk_post_user_id", {"if_exists" : true})
 drop_table("users")

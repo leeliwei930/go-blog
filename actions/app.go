@@ -70,8 +70,8 @@ func App() *buffalo.App {
 		apiv1Post.GET("/", ListPost)
 		apiv1Post.POST("/create", CreatePost)
 		apiv1Post.GET("/{post_id}", ShowPost).Name("showPost")
-		apiv1Post.PUT("/{post_id}", UpdatePost).Name("updatePost")
-		apiv1Post.DELETE("/{post_id}", DeletePost)
+		apiv1Post.PUT("/{post_id}", middleware.PostGuardMiddleware(UpdatePost)).Name("updatePost")
+		apiv1Post.DELETE("/{post_id}", middleware.PostGuardMiddleware(DeletePost))
 
 		apiv1Auth := apiv1.Group("/auth")
 		apiv1Auth.POST("/login", JwtAuthLogIn)
